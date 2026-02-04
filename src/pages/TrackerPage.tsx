@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../lib/db';
 import { Heart, Copy, ExternalLink, RefreshCw } from 'lucide-react';
@@ -7,26 +7,60 @@ const TrackerPage = () => {
   const { id } = useParams();
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [permission, setPermission] = useState(Notification.permission);
+  
+  // Use ref to track previous status for notifications
+  const prevStatus = useRef<string | null>(null);
 
   const valentineLink = `${window.location.origin}/u/${id}`;
 
   const fetchStatus = async () => {
-    setLoading(true);
     try {
       const result = await db.query('SELECT status FROM cards WHERE id = $1', [id]);
       if (result.rows.length > 0) {
-        setStatus(result.rows[0].status);
+        const newStatus = result.rows[0].status;
+        
+        // Notify if status changed from waiting to something else
+        // strict check ensures we don't notify on first load if already answered
+        if (prevStatus.current === 'waiting' && newStatus !== 'waiting') {
+             if (Notification.permission === 'granted') {
+                new Notification('Valentine Update! 💌', {
+                    body: `They replied: ${newStatus === 'yes' ? 'YES! ❤️' : 'No 💔'}`,
+                    icon: '/favicon.ico'
+                });
+            }
+            
+            // Play Sound logic
+            try {
+                const audio = new Audio('/Easy (Jeje).mp3');
+                audio.volume = 1.0; 
+                await audio.play();
+            } catch (e) {
+                console.log('Audio error (interaction needed):', e);
+            }
+        }
+        
+        setStatus(newStatus);
+        prevStatus.current = newStatus;
       }
     } catch (error) {
       console.error('Error fetching status:', error);
     } finally {
-      setLoading(false);
+       setLoading(false);
     }
   };
 
+  const requestPermission = () => {
+    Notification.requestPermission().then(p => {
+        setPermission(p);
+        if (p === 'granted') {
+            new Notification('Notifications enabled! ✅', { body: 'We will tell you when they reply!' });
+        }
+    });
+  };
+
   useEffect(() => {
-    fetchStatus();
-    // Poll every 5 seconds
+    fetchStatus(); // Initial fetch
     const interval = setInterval(fetchStatus, 5000);
     return () => clearInterval(interval);
   }, [id]);
@@ -41,7 +75,15 @@ const TrackerPage = () => {
       <div className="max-w-lg w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
         <div className="bg-gradient-to-r from-red-500 to-pink-500 p-6 text-white text-center">
            <h2 className="text-2xl font-bold">Valentine Tracker</h2>
-           <p className="opacity-90 text-sm mt-1">Secret Key: {id}</p>
+           <p className="opacity-90 text-sm mt-1 mb-2">Secret Key: {id}</p>
+           {permission === 'default' && (
+             <button 
+                onClick={requestPermission}
+                className="text-xs bg-white text-pink-600 px-3 py-1 rounded-full font-bold shadow-sm hover:scale-105 transition-transform"
+             >
+                Enable Notifications 🔔
+             </button>
+           )}
         </div>
 
         <div className="p-8">
