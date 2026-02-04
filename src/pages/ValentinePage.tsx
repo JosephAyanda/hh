@@ -708,7 +708,7 @@ const ValentinePage = () => {
             ) : (
                 <Plus className="w-5 h-5" />
             )}
-            <span>{creating ? 'Creating...' : 'Get Your Own Card'}</span>
+            <span>{creating ? 'Creating...' : 'Send to your Loved One 💝'}</span>
         </button>
       </div>
 
